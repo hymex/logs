@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Terminal — S/LogsVentas</title>
+  <style>
+    :root { --bg:#0c0c0c;--fg:#e5ffe5;--muted:#88c488;--accent:#78ff78;--prompt:#7fff7f;--shadow:rgba(0,0,0,.55);--mono:ui-monospace,Consolas,"Courier New",monospace; }
+    html,body{height:100%;margin:0;background:#0c0c0c;color:var(--fg);font-family:var(--mono);} .wrap{height:100%;display:grid;place-items:center;padding:16px;} .terminal{width:min(900px,95vw);height:min(560px,85vh);background:#000;border-radius:16px;box-shadow:0 10px 40px var(--shadow),inset 0 0 0 1px #1a1a1a;display:grid;grid-template-rows:auto 1fr auto;overflow:hidden;} .titlebar{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#0a0a0a;border-bottom:1px solid #141414;color:var(--muted);} .dot{width:12px;height:12px;border-radius:50%;} .dot.red{background:#ff5f56;} .dot.yellow{background:#ffbd2e;} .dot.green{background:#27c93f;} .screen{padding:14px 16px 8px;overflow:auto;line-height:1.4;} .line{white-space:pre-wrap;word-wrap:break-word;} .line.dim{color:#6aa46a;} .line.ok{color:var(--accent);} .line.err{color:#ff8080;} .inputRow{display:grid;grid-template-columns:auto 1fr;gap:8px;padding:0 16px 16px;align-items:center;} .prompt{color:var(--prompt);} #cmdInput{background:transparent;color:var(--fg);border:none;outline:none;font:inherit;padding:8px 10px;border-radius:8px;box-shadow:inset 0 0 0 1px #1f331f;} #cmdInput::placeholder{color:#3e7a3e;} .hint{color:#6aa46a;font-size:12px;padding:6px 16px 12px;} .kbd{padding:1px 6px;border-radius:6px;background:#093209;color:#bfffbf;border:1px solid #145214;}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="terminal">
+      <div class="titlebar">
+        <div class="dot red"></div><div class="dot yellow"></div><div class="dot green"></div>
+        <strong style="margin-left:8px">S/LogsVentas — Terminal</strong>
+      </div>
+      <div id="screen" class="screen"></div>
+      <div class="hint">Comandos: <span class="kbd">inf</span>, <span class="kbd">admin_inf</span>, <span class="kbd">del N</span>, <span class="kbd">help</span>, <span class="kbd">clear</span>.</div>
+      <div class="inputRow">
+        <div id="prompt" class="prompt">S/LogsVentas:</div>
+        <input id="cmdInput" type="text" placeholder="escribe un comando y Enter…" autocomplete="off"/>
+      </div>
+    </div>
+  </div>
+  <script>
+    const screen=document.getElementById('screen');
+    const input=document.getElementById('cmdInput');
+    const promptEl=document.getElementById('prompt');
+    const PROMPTS={MAIN:'S/LogsVentas:',ADMIN:'S/MsjVentas:'};
+    let mode='MAIN';let history=[];let historyIndex=-1;
+
+    // Simple "API" usando un archivo en GitHub RAW
+    const DATA_URL="https://raw.githubusercontent.com/USUARIO/REPO/main/mensajes.json"; // reemplaza con tu repo
+    const SAVE_URL="https://api.github.com/repos/USUARIO/REPO/contents/mensajes.json";
+    const TOKEN="TOKEN_PERSONAL"; // necesitas un token personal con permisos de repo
+
+    async function fetchMsgs(){
+      try{let res=await fetch(DATA_URL+"?"+Date.now()); return await res.json();}catch(e){return []}
+    }
+    async function saveMsgs(list){
+      let sha; try{let r=await fetch(SAVE_URL);let j=await r.json();sha=j.sha;}catch(e){}
+      await fetch(SAVE_URL,{
+        method:"PUT",
+        headers:{"Authorization":"token "+TOKEN,"Content-Type":"application/json"},
+        body:JSON.stringify({message:"update mensajes.json",content:btoa(unescape(encodeURIComponent(JSON.stringify(list,null,2)))),sha})
+      });
+    }
+
+    function echo(t,cls=''){let d=document.createElement('div');d.className=`line ${cls}`;d.textContent=t;screen.appendChild(d);screen.scrollTop=screen.scrollHeight;}
+    function echoCmd(p,t){echo(`${p} ${t}`,'dim');}
+    function setMode(m){mode=m;promptEl.textContent=(m==='ADMIN')?PROMPTS.ADMIN:PROMPTS.MAIN;}
+
+    const commands={
+      async inf(){let msgs=await fetchMsgs();if(!msgs.length){echo('No hay mensajes.','err');return;}echo(`[${msgs.length}] mensaje(s):`,'ok');msgs.forEach((m,i)=>echo(`${i+1}. ${m}`));},
+      admin_inf(){setMode('ADMIN');echo('Escribe el mensaje y Enter…','ok');},
+      async del(a){let num=parseInt(a[0],10);let msgs=await fetchMsgs();if(isNaN(num)||num<1||num>msgs.length){echo('Número inválido.','err');return;}msgs.splice(num-1,1);await saveMsgs(msgs);echo(`Mensaje ${num} eliminado.`,'ok');},
+      help(){echo('Comandos: inf, admin_inf, del N, clear, help','ok');},
+      clear(){screen.innerHTML='';}
+    };
+
+    async function handleMain(cmd){let [name,...rest]=cmd.trim().split(/\s+/);if(commands[name])await commands[name](rest);else if(name)echo(`Comando no reconocido: ${name}`,'err');}
+    async function handleAdmin(line){let msg=line.trim();if(!msg){echo('Cancelado','err');setMode('MAIN');return;}let msgs=await fetchMsgs();msgs.push(msg);await saveMsgs(msgs);echo('Mensaje guardado','ok');setMode('MAIN');}
+
+    input.addEventListener('keydown',async e=>{if(e.key==='Enter'){const v=input.value;input.value='';if(mode==='MAIN'){if(v.trim())history.push(v);historyIndex=history.length;echoCmd(PROMPTS.MAIN,v);await handleMain(v);}else{echoCmd(PROMPTS.ADMIN,v);await handleAdmin(v);}}});
+  </script>
+</body>
+</html>
