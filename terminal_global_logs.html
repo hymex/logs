@@ -34,7 +34,7 @@
     // Simple "API" usando un archivo en GitHub RAW
     const DATA_URL="https://raw.githubusercontent.com/hymex/logs/main/mensajes.json"; // reemplaza con tu repo
     const SAVE_URL="https://api.github.com/repos/hymex/logs/contents/mensajes.json";
-    const TOKEN="TOKEN_PERSONAL"; // necesitas un token personal con permisos de repo
+    const TOKEN="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"; // necesitas un token personal con permisos de repo
 
     async function fetchMsgs(){
       try{let res=await fetch(DATA_URL+"?"+Date.now()); return await res.json();}catch(e){return []}
